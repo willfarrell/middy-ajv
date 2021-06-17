@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  <p><strong>A fast for the middy framework</strong></p>
+  <p><strong>AJV middleware for the middy framework, the stylish Node.js middleware engine for AWS Lambda</strong></p>
 </div>
 
 <div align="center">
@@ -25,22 +25,20 @@
 </p>
 </div>
 
-RDS provides seamless connection with database of your choice.
+This middleware automatically validates incoming events and outgoing responses against custom
+schemas defined with the [JSON schema syntax](http://json-schema.org/).
 
-After initialization your database connection is accessible under:
-```javascript
-middy((event, context) => {
-  const { db } = context;
-});
-```
+If an incoming event fails validation a `BadRequest` error is raised.
+If an outgoing response fails validation a `InternalServerError` error is
+raised.
 
-Mind that if you use knex you will also need driver of your choice ([check docs](http://knexjs.org/#Installation-node)), for PostgreSQL that would be:
-```
-yarn add pg
-// or
-npm install pg
-```
+This middleware can be used in combination with
+[`httpErrorHandler`](#httperrorhandler) to automatically return the right
+response to the user.
 
+It can also be used in combination with [`httpcontentnegotiation`](#httpContentNegotiation) to load localised translations for the error messages (based on the currently requested language). This feature uses internally [`ajv-i18n`](http://npm.im/ajv-i18n) module, so reference to this module for options and more advanced use cases. By default the language used will be English (`en`), but you can redefine the default language by passing it in the `ajvOptions` options with the key `defaultLanguage` and specifying as value one of the [supported locales](https://www.npmjs.com/package/ajv-i18n#supported-locales).
+
+Also, this middleware accepts an object with plugins to be applied to customize the internal `ajv` instance. Out-of-the-box `ajv-i18n` and `ajv-formats` are being used.
 
 ## Install
 
@@ -52,114 +50,65 @@ npm install --save middy-ajv
 
 Requires: @middy/core:>=2.0.0
 
+
 ## Options
-- `client` (function) (required): client that you want to use when connecting to database of your choice. Designed to be used by knex.js. However, as long as your client is run as client(config), you can use other tools.
-- `config` (object) (required): configuration object passed as is to client (knex.js recommended), for more details check [knex documentation](http://knexjs.org/#Installation-client)
-- `internalData` (object) (optional): Pull values from middy internal storage into `config.connection` object.
-- `cacheKey` (string) (default `rds`): Cache key for the fetched data responses. Must be unique across all middleware.
-- `cachePasswordKey` (string) (default `rds`):Cache key for the fetched data response related to the password. Must match the `cacheKey` for the middleware that stores it.
-- `cacheExpiry` (number) (default `-1`): How long fetch data responses should be cached for. `-1`: cache forever, `0`: never cache, `n`: cache for n ms.
 
+- `inputSchema` (object) (optional): The JSON schema compiled ajv validator that will be used
+  to validate the input (`request.event`) of the Lambda handler.
+- `outputSchema` (object) (optional): The JSON schema compiled ajv validator that will be used
+  to validate the output (`request.response`) of the Lambda handler.
+- `availableLanguages` (object) (optional): Error messages can be returned in multiple languages using [`ajv-i18n`](https://www.npmjs.com/package/ajv-i18n). Language is selected based on `event.preferredLanguage` set by `@middy/http-content-negotiation`. Should be in the format: `{ 'en': require('ajv-i18n/localize/en') }`.
+- `defaultLanguage` (string) (default: `en`): The default language to use when `availableLanguages` is provided and `event.preferredLanguage` is not supported.
 
-**Note:**
-- `config.connection` defaults to:
-
-```javascript
-{
-  ssl: {
-    rejectUnauthorized: true,
-    ca, // rds-ca-2019-root.pem
-    checkServerIdentity: (host, cert) => {
-      const error = tls.checkServerIdentity(host, cert)
-      if (error && !cert.subject.CN.endsWith('.rds.amazonaws.com')) {
-         return error
-      }
-    }
-  }
-}
-```
-
-If your lambda is timing out, likely your database connections are keeping the event loop open. Check out [do-not-wait-for-empty-event-loop](https://github.com/middyjs/middy/tree/master/packages/do-not-wait-for-empty-event-loop) middleware to resolve this.
+NOTES:
+- At least one of `inputSchema` or `outputSchema` is required.
 
 ## Sample usage
 
-Minimal configuration
+Example for validation using precompiled schema:
 
-### knex
 ```javascript
-const rds = require('middy-rds')
-const knex = require('knex')
-const pg = capturePostgres(require('pg')) // AWS X-Ray
-const handler = middy(async (event, context) => {
-    const { db } = context;
-    const records = await db.select('*').from('my_table');
-    console.log(records);
-  })
-  .use(rdsSigner({
-    fetchData: {
-      rdsToken: {
-        region: 'ca-central-1',
-        hostname: '*.ca-central-1.rds.amazonaws.com',
-        username: 'iam_role',
-        database: 'postgres',
-        port: 5432
-      }
-    },
-    cacheKey: 'rds-signer'
-  }))
-  .use(rds({
-    internalData: {
-      password: 'rdsToken'
-    },
-    cacheKey: 'rds',
-    cachePasswordKey: 'rds-signer',
-    client: knex,
-    config: {
-      client: 'pg',
-      connection: {
-        host: '*.ca-central-1.rds.amazonaws.com',
-        user: 'iam_role',
-        database: 'postgres',
-        port: 5432
-      }
-    }
-  }))
+import middy from '@middy/core'
+import validator from 'middyajv'
+
+const handler = middy((event, context) => {
+  return {}
+})
+
+const inputSchema = require('schema.js')
+
+handler.use(validator({ inputSchema }))
+
+// invokes the handler, note that property foo is missing
+const event = {
+  body: JSON.stringify({something: 'somethingelse'})
+}
+handler(event, {}, (err, res) => {
+  t.is(err.message,'Event object failed validation')
+})
 ```
 
-### pg
+Example for validation that will compile the schema before deploying:
+
 ```javascript
-const rds = require('middy-rds/pg')
-const pg = capturePostgres(require('pg')) // AWS X-Ray
-const handler = middy(async (event, context) => {
-    const { db } = context;
-    const records = await db.select('*').from('my_table');
-    console.log(records);
-  })
-  .use(rdsSigner({
-    fetchData: {
-      rdsToken: {
-        region: 'ca-central-1',
-        hostname: '*.ca-central-1.rds.amazonaws.com',
-        username: 'iam_role',
-        database: 'postgres',
-        port: 5432
-      }
-    },
-    cacheKey: 'rds-signer'
-  }))
-  .use(rds({
-    internalData: {
-      password: 'rdsToken'
-    },
-    cacheKey: 'rds',
-    cachePasswordKey: 'rds-signer',
-    client: pg.Pool,
-    config: {
-      host: '*.ca-central-1.rds.amazonaws.com',
-      user: 'iam_role',
-      database: 'postgres'
-    }
-  }))
+import middy from '@middy/core'
+import validator from '@middy/validator' // We use the more developer friendly middeware, with place of replacing during build
+
+const handler = middy((event, context) => {
+  return {}
+})
+
+const schema = require('schema.json')
+
+handler.use(validator({ inputSchema }))
+
+// invokes the handler, note that property foo is missing
+const event = {
+  body: JSON.stringify({something: 'somethingelse'})
+}
+handler(event, {}, (err, res) => {
+  t.is(err.message,'Event object failed validation')
+})
 ```
 
 ## Build step
@@ -182,10 +131,10 @@ $ npm install -D ajv-cli rollup @rollup/plugin-commonjs @rollup/plugin-json @rol
 ### rollup.config.js
 ```javascript
 import { readdirSync } from 'fs'
-import json from '@rollup/plugin-json'
-import replace from '@rollup/plugin-replace'
-import resolve from '@rollup/plugin-node-resolve'
 import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
+import resolve from '@rollup/plugin-node-resolve'
+import replace from '@rollup/plugin-replace'
 import esbuild from 'rollup-plugin-esbuild'
 
 function onwarn (warning, warn) {
@@ -208,25 +157,27 @@ export default handlers.map((input) => ({
       include: ['./**/index.mjs'],
       values: {
         // use leaner version of `@middy/validator`
-        'require(\'@middy/validator\')': 'require(\'./middy-ajv\')',
-        'from \'@middy/validator\'': 'from \'./middy-ajv\'',
+        'require(\'@middy/validator\')': 'require(\'middy-ajv\')',
+        'from \'@middy/validator\'': 'from \'middy-ajv\'',
 
-        // use compiled schemas for `@middy/validator`
+        // use compiled schemas for `middy-ajv`
         'require(\'./schema.json\')': 'require(\'./schema.js\').default',
         'inputSchema from \'./schema.json\'': 'inputSchema from \'./schema.js\'',
       }
     }),
     json(),
-    // Break RDS Signer :(
-    resolve({
-      // Exclude `aws-sdk`, included in lambda runtime. Why is there React and XML code in the aws-sdk? No idea
-      resolveOnly: [/^.*(?<!aws-sdk)(?<!aws-sdk-core-react)(?<!aws-sdk-react-native)(?<!xml2js)$/]
-    }),
+    resolve({ preferBuiltins: true }),
     commonjs(),
     esbuild({
       minify: true,
       target: 'es2020'
     })
+  ],
+  external: [
+    'aws-sdk',
+    'aws-sdk/clients/cloudfront', 'aws-sdk/clients/waf', 'aws-sdk/clients/s3',
+    'aws-sdk/clients/ssm', 'aws-sdk/clients/sns', 'aws-sdk/clients/sqs', 'aws-sdk/clients/stepfunctions',
+    'aws-sdk/clients/dynamodb', 'aws-sdk/clients/rds'
   ],
   onwarn,
 }))
@@ -234,12 +185,11 @@ export default handlers.map((input) => ({
 
 ### Run
 ```shell
-# Compile JSON Schema
+# Compile JSON Schemas
 $ for dir in handlers/*/; do node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $dir'schema.json' -o $dir'schema.js'; done
 # Bundle
 $ rollup --config rollup.config.js --environment INCLUDE_DEPS,BUILD:production
 ```
-
 
 ## Middy documentation and examples
 

@@ -1,10 +1,10 @@
 const {createError} = require('@middy/util')
 
 const defaults = {
-  inputSchema: null,
-  outputSchema: null,
+  inputSchema: undefined,
+  outputSchema: undefined,
   defaultLanguage: 'en',
-  availableLanguages: undefined // { 'en': require('ajv-i18n').en }
+  availableLanguages: undefined // { 'en': require('ajv-i18n/localize/en') }
 }
 
 const ajvMiddleware = (opts = {}) => {
@@ -16,7 +16,7 @@ const ajvMiddleware = (opts = {}) => {
   } = { ...defaults, ...opts }
   const ajvLanguages = availableLanguages ? Object.keys(availableLanguages) : null
   const normalizePreferredLanguage = (lang) => languageNormalizationMap[lang] ?? lang.split('-')[0]
-  const chooseLanguage = ({ preferredLanguage }, defaultLanguage) => {
+  const chooseLanguage = ({ preferredLanguage }) => {
     if (preferredLanguage) {
       const lang = normalizePreferredLanguage(preferredLanguage)
       if (ajvLanguages.includes(lang)) {
@@ -35,7 +35,7 @@ const ajvMiddleware = (opts = {}) => {
       request.event.headers = { ...request.event.headers }
 
       if (availableLanguages) {
-        const language = chooseLanguage(request.event, defaultLanguage)
+        const language = chooseLanguage(request.event)
         availableLanguages[language](inputSchema.errors)
       }
 

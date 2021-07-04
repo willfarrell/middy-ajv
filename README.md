@@ -118,77 +118,20 @@ handler(event, {}, (err, res) => {
 {project}
 |-- handlers
 | |-- {enpoint}
-| | |-- index.mjs
+| | |-- index.js
 | | |-- schema.json
 ```
-After the build scripts have been run the `endpoint` folder will contain `schema.js` and `index.js`. The later of which you need to upload to AWS.
+After the build script has been run on the `endpoint` folder, it will contain `schema.js` and `index.js`. 
 
 ### Install
 ```shell
-$ npm install -D ajv-cli rollup @rollup/plugin-commonjs @rollup/plugin-json @rollup/plugin-node-resolve @rollup/plugin-replace rollup-plugin-esbuild esbuild
-```
-
-### rollup.config.js
-```javascript
-import { readdirSync } from 'fs'
-import commonjs from '@rollup/plugin-commonjs'
-import json from '@rollup/plugin-json'
-import resolve from '@rollup/plugin-node-resolve'
-import replace from '@rollup/plugin-replace'
-import esbuild from 'rollup-plugin-esbuild'
-
-function onwarn (warning, warn) {
-  if (warning.code === 'CIRCULAR_DEPENDENCY') return
-  warn(warning)
-}
-
-import {dirname, join} from 'path'
-const handlers = readdirSync('./handlers').filter((dir) => dir !=='.DS_Store')
-export default handlers.map((input) => ({
-  input: 'handlers/' + input + '/index.mjs',
-  output: {
-    file: 'handlers/' + input + '/index.js',
-    format: 'cjs',
-  },
-  plugins: [
-    replace({
-      preventAssignment: false,  // remove warning, will be default in future version
-      delimiters: ['',''],
-      include: ['./**/index.mjs'],
-      values: {
-        // use leaner version of `@middy/validator`
-        'require(\'@middy/validator\')': 'require(\'middy-ajv\')',
-        'from \'@middy/validator\'': 'from \'middy-ajv\'',
-
-        // use compiled schemas for `middy-ajv`
-        'require(\'./schema.json\')': 'require(\'./schema.js\').default',
-        'inputSchema from \'./schema.json\'': 'inputSchema from \'./schema.js\'',
-      }
-    }),
-    json(),
-    resolve({ preferBuiltins: true }),
-    commonjs(),
-    esbuild({
-      minify: true,
-      target: 'es2020'
-    })
-  ],
-  external: [
-    'aws-sdk',
-    'aws-sdk/clients/cloudfront', 'aws-sdk/clients/waf', 'aws-sdk/clients/s3',
-    'aws-sdk/clients/ssm', 'aws-sdk/clients/sns', 'aws-sdk/clients/sqs', 'aws-sdk/clients/stepfunctions',
-    'aws-sdk/clients/dynamodb', 'aws-sdk/clients/rds'
-  ],
-  onwarn,
-}))
+$ npm install -D ajv-cli
 ```
 
 ### Run
 ```shell
 # Compile JSON Schemas
 $ for dir in handlers/*/; do node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $dir'schema.json' -o $dir'schema.js'; done
-# Bundle
-$ rollup --config rollup.config.js --environment INCLUDE_DEPS,BUILD:production
 ```
 
 ## Middy documentation and examples

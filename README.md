@@ -69,7 +69,7 @@ Example for validation using precompiled schema:
 
 ```javascript
 import middy from '@middy/core'
-import validator from 'middyajv'
+import validator from 'middy-ajv'
 
 const handler = middy((event, context) => {
   return {}

@@ -130,8 +130,16 @@ $ npm install -D ajv-cli
 
 ### Run
 ```shell
+#!/usr/bin/env bash
 # Compile JSON Schemas
-$ for dir in handlers/*/; do node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $dir'schema.json' -o $dir'schema.js'; done
+function ajv {
+	node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $1'schema.json' -o $1'schema.js'
+}
+for dir in handlers/*/; do
+  if [ ! -n "$(ajv $dir | grep ' is valid')" ]; then
+	  exit 1
+  fi
+done
 ```
 
 ## Middy documentation and examples

@@ -53,9 +53,11 @@ Requires: @middy/core:>=2.0.0
 
 ## Options
 
-- `inputSchema` (object) (optional): The JSON schema compiled ajv validator that will be used
+- `eventSchema` (function) (default `undefined`): The JSON schema compiled ajv validator that will be used
   to validate the input (`request.event`) of the Lambda handler.
-- `outputSchema` (object) (optional): The JSON schema compiled ajv validator that will be used
+- `contextSchema` (function) (default `undefined`): The JSON schema object or compiled ajv validator that will be used
+  to validate the input (`request.context`) of the Lambda handler. Has additional support for `typeof` keyword to allow validation of `"typeof":"function"`.
+- `responseSchema` (function) (default `undefined`): The JSON schema compiled ajv validator that will be used
   to validate the output (`request.response`) of the Lambda handler.
 - `availableLanguages` (object) (optional): Error messages can be returned in multiple languages using [`ajv-i18n`](https://www.npmjs.com/package/ajv-i18n). Language is selected based on `event.preferredLanguage` set by `@middy/http-content-negotiation`. Should be in the format: `{ 'en': require('ajv-i18n/localize/en') }`.
 - `defaultLanguage` (string) (default: `en`): The default language to use when `availableLanguages` is provided and `event.preferredLanguage` is not supported.
@@ -75,32 +77,9 @@ const handler = middy((event, context) => {
   return {}
 })
 
-const inputSchema = require('schema.js')
+const eventSchema = require('schema.js')
 
-handler.use(validator({ inputSchema }))
-
-// invokes the handler, note that property foo is missing
-const event = {
-  body: JSON.stringify({something: 'somethingelse'})
-}
-handler(event, {}, (err, res) => {
-  t.is(err.message,'Event object failed validation')
-})
-```
-
-Example for validation that will compile the schema before deploying:
-
-```javascript
-import middy from '@middy/core'
-import validator from '@middy/validator' // We use the more developer friendly middeware, with place of replacing during build
-
-const handler = middy((event, context) => {
-  return {}
-})
-
-const schema = require('schema.json')
-
-handler.use(validator({ inputSchema }))
+handler.use(validator({ eventSchema }))
 
 // invokes the handler, note that property foo is missing
 const event = {
@@ -119,7 +98,7 @@ handler(event, {}, (err, res) => {
 |-- handlers
 | |-- {enpoint}
 | | |-- index.js
-| | |-- schema.json
+| | |-- eventSchema.json
 ```
 After the build script has been run on the `endpoint` folder, it will contain `schema.js` and `index.js`. 
 
@@ -133,7 +112,7 @@ $ npm install -D ajv-cli
 #!/usr/bin/env bash
 # Compile JSON Schemas
 function ajv {
-	node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $1'schema.json' -o $1'schema.js'
+	node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $1'eventSchema.json' -o $1'eventSchema.js'
 }
 for dir in handlers/*/; do
   if [ ! -n "$(ajv $dir | grep ' is valid')" ]; then

@@ -1,16 +1,18 @@
-const {createError} = require('@middy/util')
+import { createError } from '@middy/util'
 
 const defaults = {
-  inputSchema: undefined,
-  outputSchema: undefined,
+  eventSchema: undefined,
+  contextSchema: undefined,
+  responseSchema: undefined,
   defaultLanguage: 'en',
   availableLanguages: undefined // { 'en': require('ajv-i18n/localize/en') }
 }
 
 const ajvMiddleware = (opts = {}) => {
   const {
-    inputSchema,
-    outputSchema,
+    eventSchema,
+    contextSchema,
+    responseSchema,
     defaultLanguage,
     availableLanguages
   } = { ...defaults, ...opts }
@@ -28,35 +30,44 @@ const ajvMiddleware = (opts = {}) => {
   }
 
   const ajvMiddlewareBefore = async (request) => {
-    const valid = inputSchema(request.event)
+    if (eventSchema) {
+      const eventValid = eventSchema(request.event)
 
-    if (!valid) {
-      const error = createError(400, 'Event object failed validation')
-      request.event.headers = { ...request.event.headers }
+      if (!eventValid) {
+        const error = createError(400, 'Event object failed validation')
 
-      if (availableLanguages) {
-        const language = chooseLanguage(request.event)
-        availableLanguages[language](inputSchema.errors)
+        if (availableLanguages) {
+          const language = chooseLanguage(request.event)
+          availableLanguages[language](eventSchema.errors)
+        }
+
+        error.cause = eventSchema.errors
+        throw error
       }
+    }
+    if (contextSchema) {
+      const contextValid = contextSchema(request.context)
 
-      error.details = inputSchema.errors
-      throw error
+      if (!contextValid) {
+        const error = createError(500, 'Context object failed validation')
+        error.cause = contextSchema.errors
+        throw error
+      }
     }
   }
 
   const ajvMiddlewareAfter = async (request) => {
-    const valid = outputSchema(request.response)
+    const responseValid = responseSchema(request.response)
 
-    if (!valid) {
+    if (!responseValid) {
       const error = createError(500, 'Response object failed validation')
-      error.details = outputSchema.errors
-      error.response = request.response
+      error.cause = responseSchema.errors
       throw error
     }
   }
   return {
-    before: inputSchema ? ajvMiddlewareBefore : undefined,
-    after: outputSchema ? ajvMiddlewareAfter : undefined
+    before: eventSchema ?? contextSchema ? ajvMiddlewareBefore : undefined,
+    after: responseSchema ? ajvMiddlewareAfter : undefined
   }
 }
 
@@ -71,4 +82,4 @@ const languageNormalizationMap = {
   zh_tw: 'zh-TW'
 }
 
-module.exports = ajvMiddleware
+export default ajvMiddleware

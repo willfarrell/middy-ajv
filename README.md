@@ -1,7 +1,7 @@
 # Middy AJV
 
 <div align="center">
-  <img alt="Middy logo" src="https://raw.githubusercontent.com/middyjs/middy/master/docs/img/middy-logo.png"/>
+  <img alt="Middy logo" src="https://raw.githubusercontent.com/middyjs/middy/master/docs/img/middy-logo.svg"/>
 </div>
 
 <div align="center">

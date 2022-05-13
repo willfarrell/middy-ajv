@@ -34,7 +34,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/willfarrell/middy-rds.git"
+    "url": "git+https://github.com/willfarrell/middy-ajv.git"
   },
   "bugs": {
     "url": "https://github.com/willfarrell/middy-ajv/issues"

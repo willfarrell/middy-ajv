@@ -7,9 +7,13 @@
     "node": ">=14"
   },
   "engineStrict": true,
+  "bin": {
+    "middy-ajv": "compile-ajv.sh"
+  },
   "exports": "./index.js",
   "files": [
-    "index.js"
+    "index.js",
+    "compile-ajv.sh"
   ],
   "publishConfig": {
     "access": "public"
@@ -47,6 +51,7 @@
   "devDependencies": {
     "@middy/core": "^3.0.0-alpha.8",
     "ajv": "^8.11.0",
+    "ajv-cli": "^5.0.0",
     "ajv-formats": "^2.1.1",
     "ajv-formats-draft2019": "^1.6.1",
     "ajv-i18n": "^4.2.0",

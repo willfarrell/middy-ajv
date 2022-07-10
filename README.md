@@ -96,9 +96,11 @@ handler(event, {}, (err, res) => {
 ```shell
 {project}
 |-- handlers
-| |-- {enpoint}
+| |-- {endpoint}
 | | |-- index.js
-| | |-- eventSchema.json
+| | |-- schema.event.json
+| | |-- schema.context.json
+| | |-- schema.response.json
 ```
 After the build script has been run on the `endpoint` folder, it will contain `schema.js` and `index.js`. 
 
@@ -111,12 +113,18 @@ $ npm install -D ajv-cli
 ```shell
 #!/usr/bin/env bash
 # Compile JSON Schemas
+# - ESM Support https://github.com/ajv-validator/ajv-cli/pull/200
+# - fast-uri Support https://github.com/ajv-validator/ajv-cli/pull/210
 function ajv {
-	node ./node_modules/ajv-cli/dist/index.js compile -c ajv-formats -c ajv-formats-draft2019 --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false -s $1'eventSchema.json' -o $1'eventSchema.js'
+  # `-c ajv-keywords/dist/keywords/typeof` require for `context`
+  node ./node_modules/ajv-cli/dist/index.js compile --spec=draft2020 \
+    -c ajv-formats -c ajv-formats-draft2019 -c ajv-keywords/dist/keywords/typeof \
+    --strict=true --coerce-types=array --all-errors=true --use-defaults=empty --messages=false \
+    -s ${1} -o ${1/json/js}
 }
-for dir in handlers/*/; do
-  if [ ! -n "$(ajv $dir | grep ' is valid')" ]; then
-	  exit 1
+for file in handlers/*/schema.*.json; do
+  if [ ! -n "$(ajv $file | grep ' is valid')" ]; then
+    exit 1
   fi
 done
 ```

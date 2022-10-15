@@ -63,7 +63,7 @@ Requires: @middy/core:>=2.0.0
 - `defaultLanguage` (string) (default: `en`): The default language to use when `availableLanguages` is provided and `event.preferredLanguage` is not supported.
 
 NOTES:
-- At least one of `inputSchema` or `outputSchema` is required.
+- At least one of `eventSchema` or `responseSchema` is required.
 
 ## Sample usage
 
